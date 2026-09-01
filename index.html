@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Finanzas del Reino</title>
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#1F4436">
+<link rel="icon" href="./icon-192.png">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --tinta:#1F4436; --tinta-clara:#2F6B4F; --papel:#F1ECDD; --papel-oscuro:#E7E0C9;
+    --linea:#CDC2A0; --rojo:#A63D2F; --dorado:#B8862E; --texto:#2B2620; --texto-claro:#6B6354;
+    --blanco:#FFFDF8; --sombra:0 6px 20px rgba(31,68,54,0.12);
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; font-family:'IBM Plex Sans',sans-serif; color:var(--texto); background:var(--tinta); min-height:100vh;}
+  h1,h2,h3,.serif{font-family:'Fraunces',serif;}
+  .mono{font-family:'IBM Plex Mono',monospace;}
+
+  /* ---------- Auth screen ---------- */
+  #auth-screen{
+    min-height:100vh; display:flex; align-items:center; justify-content:center;
+    background:var(--tinta); padding:20px;
+  }
+  .auth-card{
+    background:var(--papel); border-radius:6px; padding:36px 32px; max-width:380px; width:100%;
+    box-shadow:0 20px 50px rgba(0,0,0,.3); border-top:4px solid var(--dorado);
+  }
+  .auth-card h1{font-size:24px; margin:0 0 4px; color:var(--tinta);}
+  .auth-card p.tag{margin:0 0 24px; font-size:13px; color:var(--texto-claro);}
+  .auth-card label{display:block; font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--texto-claro); margin-bottom:5px;}
+  .auth-card input{width:100%; padding:10px 12px; margin-bottom:14px; border:1px solid var(--linea); border-radius:4px; background:var(--blanco); font-size:14px;}
+  .auth-card button{width:100%; padding:12px; border:none; border-radius:4px; background:var(--tinta); color:var(--papel); font-weight:600; cursor:pointer; font-size:14px;}
+  .auth-card button:hover{background:var(--tinta-clara);}
+  .auth-toggle{text-align:center; margin-top:14px; font-size:13px; color:var(--texto-claro);}
+  .auth-toggle a{color:var(--dorado); cursor:pointer; font-weight:600;}
+  .auth-error{background:#FBE3DE; color:var(--rojo); padding:9px 12px; border-radius:4px; font-size:13px; margin-bottom:14px; display:none;}
+
+  /* ---------- Shell ---------- */
+  .shell{display:none; min-height:100vh;}
+  .shell.visible{display:flex;}
+  .sidebar{width:220px; flex-shrink:0; background:var(--tinta); color:var(--papel); padding:28px 0 20px; display:flex; flex-direction:column;}
+  .brand{padding:0 22px 22px; border-bottom:1px solid rgba(241,236,221,0.15); margin-bottom:10px;}
+  .brand .eyebrow{font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--dorado); margin-bottom:4px;}
+  .brand h1{font-size:21px; font-weight:600; margin:0; line-height:1.15;}
+  nav{flex:1; padding-top:8px;}
+  .tab-btn{display:block; width:100%; text-align:left; background:none; border:none; color:rgba(241,236,221,0.75); font-family:'IBM Plex Sans',sans-serif; font-size:14.5px; padding:13px 22px; cursor:pointer; border-left:3px solid transparent;}
+  .tab-btn .num{font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--dorado); margin-right:9px;}
+  .tab-btn:hover{color:var(--papel); background:rgba(241,236,221,0.06);}
+  .tab-btn.active{color:var(--papel); background:rgba(241,236,221,0.1); border-left:3px solid var(--dorado); font-weight:600;}
+  .sidebar-foot{padding:14px 22px 0; font-size:11.5px; color:rgba(241,236,221,0.5); border-top:1px solid rgba(241,236,221,0.15);}
+  .sidebar-foot button{margin-top:8px; background:none; border:1px solid rgba(241,236,221,0.3); color:var(--papel); padding:6px 10px; border-radius:3px; font-size:12px; cursor:pointer; width:100%;}
+  .role-badge{display:inline-block; font-size:10px; text-transform:uppercase; letter-spacing:.06em; background:var(--dorado); color:var(--tinta); padding:2px 8px; border-radius:20px; font-weight:700; margin-top:4px;}
+
+  .main{flex:1; background:repeating-linear-gradient(var(--papel) 0px, var(--papel) 33px, var(--linea) 34px); position:relative; min-height:100vh; padding:0 0 60px 64px;}
+  .main::before{content:""; position:absolute; top:0; left:44px; bottom:0; width:1px; background:var(--rojo); opacity:.35;}
+  .page{max-width:920px; padding:36px 40px 20px 26px;}
+  .page-head{display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:26px; flex-wrap:wrap; gap:14px;}
+  .page-head h2{font-size:26px; margin:0 0 4px; font-weight:600;}
+  .page-head p{margin:0; color:var(--texto-claro); font-size:14px;}
+
+  .sello{display:inline-flex; flex-direction:column; align-items:center; justify-content:center; width:104px; height:104px; border-radius:50%; border:3px dashed var(--dorado); color:var(--dorado); transform:rotate(-8deg); font-family:'IBM Plex Mono',monospace; text-transform:uppercase; font-size:10px; text-align:center; flex-shrink:0; background:rgba(184,134,46,0.05);}
+  .sello.bad{border-color:var(--rojo); color:var(--rojo); background:rgba(166,61,47,0.05);}
+  .sello strong{font-size:14px; margin-top:2px;}
+
+  .cards-row{display:flex; gap:16px; margin-bottom:24px; flex-wrap:wrap;}
+  .card{background:var(--blanco); border:1px solid var(--linea); border-radius:4px; padding:16px 18px; flex:1; min-width:160px; box-shadow:var(--sombra);}
+  .card .eyebrow{font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--texto-claro); margin-bottom:6px;}
+  .card .valor{font-family:'IBM Plex Mono',monospace; font-size:21px; font-weight:600;}
+  .card.ingreso .valor{color:var(--tinta-clara);} .card.gasto .valor{color:var(--rojo);} .card.balance .valor{color:var(--tinta);}
+
+  .tabla-wrap{background:var(--blanco); border:1px solid var(--linea); border-radius:4px; box-shadow:var(--sombra); overflow:auto;}
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  thead th{text-align:left; font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--texto-claro); background:var(--papel-oscuro); padding:9px 12px; font-weight:600;}
+  tbody td{padding:10px 12px; border-top:1px solid var(--papel-oscuro); vertical-align:middle;}
+  tbody tr:hover{background:rgba(184,134,46,0.05);}
+  .monto-cell{font-family:'IBM Plex Mono',monospace; font-weight:600; white-space:nowrap;}
+  .monto-cell.ingreso{color:var(--tinta-clara);} .monto-cell.gasto{color:var(--rojo);}
+  .badge{display:inline-block; font-size:10.5px; padding:2px 8px; border-radius:20px; background:var(--papel-oscuro); color:var(--texto-claro);}
+  .icon-btn{background:none; border:none; cursor:pointer; color:var(--texto-claro); font-size:14px; padding:2px 5px;}
+  .icon-btn:hover{color:var(--rojo);}
+  .empty-row td{text-align:center; color:var(--texto-claro); padding:26px; font-style:italic;}
+
+  .form-card{background:var(--blanco); border:1px solid var(--linea); border-radius:4px; box-shadow:var(--sombra); padding:24px 26px; max-width:540px;}
+  .form-row{margin-bottom:15px;}
+  .form-row label{display:block; font-size:12px; letter-spacing:.05em; text-transform:uppercase; color:var(--texto-claro); margin-bottom:6px;}
+  .form-row input, .form-row select, .form-row textarea{width:100%; padding:9px 11px; border:1px solid var(--linea); border-radius:3px; background:var(--papel); font-family:'IBM Plex Sans',sans-serif; font-size:14px; color:var(--texto);}
+  .tipo-toggle{display:flex; gap:10px;}
+  .tipo-toggle button{flex:1; padding:11px; border:1px solid var(--linea); background:var(--papel); border-radius:3px; cursor:pointer; font-weight:600; font-size:14px; color:var(--texto-claro);}
+  .tipo-toggle button.active-ingreso{background:var(--tinta-clara); color:#fff; border-color:var(--tinta-clara);}
+  .tipo-toggle button.active-gasto{background:var(--rojo); color:#fff; border-color:var(--rojo);}
+  .btn{display:inline-flex; align-items:center; gap:7px; background:var(--tinta); color:var(--papel); border:none; padding:11px 20px; border-radius:3px; font-weight:600; font-size:14px; cursor:pointer;}
+  .btn:hover{background:var(--tinta-clara);}
+  .btn.secondary{background:none; color:var(--tinta); border:1px solid var(--tinta);}
+  .btn.secondary:hover{background:rgba(31,68,54,0.06);}
+  .btn:disabled{opacity:.5; cursor:not-allowed;}
+  .file-drop{border:1.5px dashed var(--linea); border-radius:4px; padding:16px; text-align:center; font-size:13px; color:var(--texto-claro); cursor:pointer; background:var(--papel);}
+  .file-drop.has-file{border-color:var(--tinta-clara); color:var(--tinta-clara); font-weight:600;}
+  .hint{font-size:12px; color:var(--texto-claro); margin-top:5px;}
+
+  .filtros{display:flex; gap:10px; margin-bottom:18px; flex-wrap:wrap;}
+  .filtros select{padding:8px 10px; border:1px solid var(--linea); border-radius:3px; background:var(--blanco); font-size:13px;}
+
+  .docs-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:14px;}
+  .doc-card{background:var(--blanco); border:1px solid var(--linea); border-radius:4px; box-shadow:var(--sombra); padding:15px;}
+  .doc-card .tipo-tag{display:inline-block; font-size:10px; text-transform:uppercase; padding:3px 8px; border-radius:20px; margin-bottom:8px; font-weight:600;}
+  .tipo-tag.factura{background:#F3E4CE; color:#8A5A16;} .tipo-tag.desprendible{background:#DCEAE1; color:var(--tinta-clara);} .tipo-tag.extracto{background:#E5DEEB; color:#5B3E7A;}
+  .doc-card .nombre{font-weight:600; font-size:13.5px; margin-bottom:10px; word-break:break-word;}
+  .doc-card .acciones{display:flex; gap:8px;}
+  .doc-card .acciones a, .doc-card .acciones button{flex:1; font-size:12px; padding:7px; border-radius:3px; border:1px solid var(--linea); background:var(--papel); cursor:pointer; text-align:center; text-decoration:none; color:var(--texto);}
+
+  .toolbar{display:flex; gap:10px; margin-bottom:18px; flex-wrap:wrap;}
+  canvas{max-width:100%;}
+  .toast{position:fixed; bottom:22px; right:22px; background:var(--tinta); color:var(--papel); padding:12px 18px; border-radius:4px; font-size:13.5px; box-shadow:0 8px 24px rgba(0,0,0,.25); opacity:0; transform:translateY(8px); transition:all .25s ease; pointer-events:none; z-index:999; max-width:340px; line-height:1.5;}
+  .toast.show{opacity:1; transform:translateY(0);}
+  .loading-msg{padding:40px; text-align:center; color:var(--texto-claro);}
+  .locked-note{background:#F3E4CE; color:#8A5A16; padding:10px 14px; border-radius:4px; font-size:13px; margin-bottom:16px;}
+
+  @media (max-width:760px){
+    .shell.visible{flex-direction:column;}
+    .sidebar{width:100%; flex-direction:row; overflow-x:auto; padding:14px 0;}
+    .brand{display:none;} nav{display:flex;}
+    .main{padding-left:0;} .main::before{display:none;}
+    .page{padding:22px 16px;}
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ Pantalla de acceso ============ -->
+<div id="auth-screen">
+  <div class="auth-card">
+    <h1>Finanzas del Reino</h1>
+    <p class="tag">Administra tus ingresos y gastos con principios de mayordomía.</p>
+    <div class="auth-error" id="auth-error"></div>
+    <label>Correo</label>
+    <input type="email" id="auth-email" placeholder="tucorreo@ejemplo.com">
+    <label>Contraseña</label>
+    <input type="password" id="auth-password" placeholder="••••••••">
+    <button id="btn-auth-submit">Iniciar sesión</button>
+    <div class="auth-toggle" id="auth-toggle">¿Primera vez aquí? <a id="link-toggle-mode">Crea tu cuenta</a></div>
+  </div>
+</div>
+
+<!-- ============ App ============ -->
+<div class="shell" id="shell">
+  <div class="sidebar">
+    <div class="brand">
+      <div class="eyebrow">Finanzas del Reino</div>
+      <h1>Mis Finanzas</h1>
+    </div>
+    <nav id="nav"></nav>
+    <div class="sidebar-foot">
+      <div id="user-info">—</div>
+      <button id="btn-logout">Cerrar sesión</button>
+    </div>
+  </div>
+  <div class="main"><div class="page" id="page"></div></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   CONFIGURA AQUÍ tus credenciales de Supabase (Project Settings → API)
+   ============================================================ */
+const SUPABASE_URL = "https://wsvsylkqqiewpexcdrvp.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_qL-BLI4VZkd4BzvTKu-9HQ_i7fbsekP";
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+/* ============ Estado ============ */
+let session = null;
+let profile = null; // {id, email, role}
+let isAdmin = false;
+let movimientos = [], documentos = [], categorias = [], medios = [], distribucion = {diezmo:10,ahorro:20,gastos:50,estilo:20};
+let currentTab = 'resumen';
+let tipoNuevo = 'gasto';
+let editingId = null;
+let pendingFile = null;
+let authMode = 'login';
+
+const fmt = new Intl.NumberFormat('es-CO', {style:'currency', currency:'COP', maximumFractionDigits:0});
+const fmtFecha = (iso) => new Date(iso+'T00:00:00').toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'numeric'});
+const NOMBRES_CASILLAS = {diezmo:'Diezmo', ahorro:'Ahorro e inversión (fondo de oportunidades)', gastos:'Gastos necesarios', estilo:'Estilo de vida'};
+
+function toast(msg, ms){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(()=>t.classList.remove('show'), ms||2600);
+}
+
+/* ============ Registro del Service Worker ============ */
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=> navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));
+}
+
+/* ============ Autenticación ============ */
+document.getElementById('link-toggle-mode').addEventListener('click', ()=>{
+  authMode = authMode==='login' ? 'signup' : 'login';
+  document.getElementById('btn-auth-submit').textContent = authMode==='login' ? 'Iniciar sesión' : 'Crear cuenta';
+  document.getElementById('auth-toggle').innerHTML = authMode==='login'
+    ? '¿Primera vez aquí? <a id="link-toggle-mode">Crea tu cuenta</a>'
+    : '¿Ya tienes cuenta? <a id="link-toggle-mode">Inicia sesión</a>';
+  document.getElementById('link-toggle-mode').addEventListener('click', arguments.callee);
+});
+
+document.getElementById('btn-auth-submit').addEventListener('click', async ()=>{
+  const email = document.getElementById('auth-email').value.trim();
+  const password = document.getElementById('auth-password').value;
+  const errBox = document.getElementById('auth-error');
+  errBox.style.display = 'none';
+  if(!email || !password){ errBox.textContent = 'Completa correo y contraseña.'; errBox.style.display='block'; return; }
+  try{
+    const { error } = authMode==='login'
+      ? await sb.auth.signInWithPassword({email, password})
+      : await sb.auth.signUp({email, password});
+    if(error){ errBox.textContent = error.message; errBox.style.display='block'; return; }
+    if(authMode==='signup'){ toast('Cuenta creada. Si Supabase pide confirmación por correo, revísalo antes de entrar.'); }
+  }catch(e){
+    errBox.textContent = 'No se pudo conectar con Supabase. Revisa el Project URL y anon key en el archivo.';
+    errBox.style.display = 'block';
+  }
+});
+
+document.getElementById('btn-logout').addEventListener('click', async ()=>{
+  await sb.auth.signOut();
+});
+
+sb.auth.onAuthStateChange(async (event, sess)=>{
+  session = sess;
+  if(session){
+    await afterLogin();
+  } else {
+    document.getElementById('auth-screen').style.display = 'flex';
+    document.getElementById('shell').classList.remove('visible');
+  }
+});
+
+async function afterLogin(){
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('shell').classList.add('visible');
+  document.getElementById('page').innerHTML = '<div class="loading-msg">Cargando tu información…</div>';
+
+  const { data: prof, error } = await sb.from('profiles').select('*').eq('id', session.user.id).single();
+  if(error || !prof){
+    toast('No se pudo cargar tu perfil. Verifica que el script SQL se haya ejecutado.');
+    return;
+  }
+  profile = prof;
+  isAdmin = profile.role === 'admin';
+  document.getElementById('user-info').innerHTML = `${profile.email}<br><span class="role-badge">${isAdmin?'Administrador':'Colaborador'}</span>`;
+
+  await loadAll();
+  render();
+}
+
+/* ============ Carga de datos desde Supabase ============ */
+async function loadAll(){
+  const [movR, docR, catR, medR, distR] = await Promise.all([
+    sb.from('movements').select('*').order('fecha', {ascending:false}),
+    sb.from('documents').select('*').order('created_at', {ascending:false}),
+    sb.from('categories').select('*').order('nombre'),
+    sb.from('payment_methods').select('*').order('nombre'),
+    sb.from('distribution_settings').select('*').eq('user_id', session.user.id).single()
+  ]);
+  movimientos = movR.data || [];
+  documentos = docR.data || [];
+  categorias = catR.data || [];
+  medios = medR.data || [];
+  if(distR.data) distribucion = distR.data;
+}
+
+function categoriasPorTipo(tipo){ return categorias.filter(c=>c.tipo===tipo).map(c=>c.nombre); }
+
+/* ============ Navegación ============ */
+function tabsDisponibles(){
+  const base = [
+    {id:'resumen', num:'01', label:'Resumen'},
+    {id:'movimientos', num:'02', label:'Movimientos'},
+    {id:'nuevo', num:'03', label:'Nuevo movimiento'},
+    {id:'documentos', num:'04', label:'Documentos'},
+    {id:'reportes', num:'05', label:'Reportes'},
+    {id:'ajustes', num:'06', label: isAdmin ? 'Categorías y mi distribución' : 'Mi distribución'},
+  ];
+  return base;
+}
+
+function renderNav(){
+  const nav = document.getElementById('nav');
+  nav.innerHTML = tabsDisponibles().map(t=>`
+    <button class="tab-btn ${currentTab===t.id?'active':''}" data-tab="${t.id}"><span class="num">${t.num}</span>${t.label}</button>
+  `).join('');
+  nav.querySelectorAll('.tab-btn').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      if(b.dataset.tab==='nuevo'){ editingId=null; pendingFile=null; }
+      currentTab = b.dataset.tab; render();
+    });
+  });
+}
+
+function render(){
+  renderNav();
+  const page = document.getElementById('page');
+  if(currentTab==='resumen') page.innerHTML = viewResumen();
+  else if(currentTab==='movimientos') page.innerHTML = viewMovimientos();
+  else if(currentTab==='nuevo') page.innerHTML = viewNuevo();
+  else if(currentTab==='documentos') page.innerHTML = viewDocumentos();
+  else if(currentTab==='reportes') page.innerHTML = viewReportes();
+  else if(currentTab==='ajustes') page.innerHTML = viewAjustes();
+  attachHandlers();
+}
+
+function totales(lista){
+  const ingresos = lista.filter(m=>m.tipo==='ingreso').reduce((s,m)=>s+Number(m.monto),0);
+  const gastos = lista.filter(m=>m.tipo==='gasto').reduce((s,m)=>s+Number(m.monto),0);
+  return {ingresos, gastos, balance: ingresos-gastos};
+}
+function calcularDistribucion(monto){
+  const r = {};
+  ['diezmo','ahorro','gastos','estilo'].forEach(k=> r[k] = monto * (Number(distribucion[k])/100));
+  return r;
+}
+
+/* ============ Resumen ============ */
+function viewResumen(){
+  const {ingresos, gastos, balance} = totales(movimientos);
+  const positivo = balance >= 0;
+  const recientes = [...movimientos].slice(0,6);
+  return `
+    <div class="page-head">
+      <div><h2>Resumen general</h2><p>Todo lo que ha entrado y salido, en un solo vistazo.</p></div>
+      <div class="sello ${positivo?'':'bad'}"><span>Balance</span><strong>${positivo?'AL DÍA':'REVISAR'}</strong></div>
+    </div>
+    <div class="cards-row">
+      <div class="card ingreso"><div class="eyebrow">Ingresos totales</div><div class="valor mono">${fmt.format(ingresos)}</div></div>
+      <div class="card gasto"><div class="eyebrow">Gastos totales</div><div class="valor mono">${fmt.format(gastos)}</div></div>
+      <div class="card balance"><div class="eyebrow">Balance</div><div class="valor mono">${fmt.format(balance)}</div></div>
+    </div>
+    <div class="tabla-wrap" style="padding:18px 20px; margin-bottom:24px; border-left:3px solid var(--dorado);">
+      <h3 style="margin:0 0 4px; font-size:15px;">Distribución de tus ingresos (mayordomía)</h3>
+      <p style="margin:0 0 12px; font-size:12.5px; color:var(--texto-claro);">Según los porcentajes configurados, sobre el total de ingresos registrados.</p>
+      ${tablaDistribucion(ingresos)}
+    </div>
+    <div class="tabla-wrap" style="padding:18px 20px; margin-bottom:24px;">
+      <h3 style="margin:0 0 12px; font-size:15px;">Ingresos vs. gastos por mes</h3>
+      <canvas id="chart" height="160"></canvas>
+    </div>
+    <h3 style="font-size:15px; margin-bottom:10px;">Movimientos recientes</h3>
+    <div class="tabla-wrap">
+      <table>
+        <thead><tr><th>Fecha</th><th>Categoría</th><th>Descripción</th><th style="text-align:right;">Monto</th></tr></thead>
+        <tbody>
+          ${recientes.length ? recientes.map(m=>`
+            <tr><td>${fmtFecha(m.fecha)}</td><td><span class="badge">${m.categoria}</span></td><td>${m.descripcion||'—'}</td>
+            <td class="monto-cell ${m.tipo}" style="text-align:right;">${m.tipo==='gasto'?'-':'+'}${fmt.format(m.monto)}</td></tr>
+          `).join('') : '<tr class="empty-row"><td colspan="4">Aún no hay movimientos. Ve a "Nuevo movimiento".</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function tablaDistribucion(totalIngresos){
+  if(totalIngresos<=0) return '<div style="color:var(--texto-claro); font-size:13px;">Registra un ingreso para ver cómo se reparte.</div>';
+  const montos = calcularDistribucion(totalIngresos);
+  return `<table><thead><tr><th>Casilla</th><th style="text-align:right;">%</th><th style="text-align:right;">Monto</th></tr></thead><tbody>
+    ${Object.keys(NOMBRES_CASILLAS).map(k=>`<tr><td>${NOMBRES_CASILLAS[k]}</td><td class="mono" style="text-align:right;">${distribucion[k]}%</td><td class="monto-cell ingreso" style="text-align:right;">${fmt.format(montos[k])}</td></tr>`).join('')}
+  </tbody></table>`;
+}
+
+function drawChart(){
+  const canvas = document.getElementById('chart'); if(!canvas) return;
+  const ctx = canvas.getContext('2d'); const dpr = window.devicePixelRatio||1;
+  const w = canvas.clientWidth, h = 160;
+  canvas.width = w*dpr; canvas.height = h*dpr; ctx.scale(dpr,dpr); ctx.clearRect(0,0,w,h);
+  const meses = {};
+  movimientos.forEach(m=>{ const key=m.fecha.slice(0,7); if(!meses[key]) meses[key]={ingreso:0,gasto:0}; meses[key][m.tipo]+=Number(m.monto); });
+  const keys = Object.keys(meses).sort().slice(-6);
+  if(keys.length===0){ ctx.fillStyle='#6B6354'; ctx.font='13px IBM Plex Sans'; ctx.fillText('Aún no hay datos suficientes.',10,h/2); return; }
+  const max = Math.max(1, ...keys.map(k=>Math.max(meses[k].ingreso, meses[k].gasto)));
+  const groupW = w/keys.length, barW = Math.min(26, groupW/3.2), baseY = h-24;
+  keys.forEach((k,i)=>{
+    const cx = groupW*i + groupW/2;
+    const gi=(meses[k].ingreso/max)*(h-46), gg=(meses[k].gasto/max)*(h-46);
+    ctx.fillStyle='#2F6B4F'; ctx.fillRect(cx-barW-2, baseY-gi, barW, gi);
+    ctx.fillStyle='#A63D2F'; ctx.fillRect(cx+2, baseY-gg, barW, gg);
+    ctx.fillStyle='#6B6354'; ctx.font='11px "IBM Plex Mono"'; ctx.textAlign='center';
+    const [y,mo]=k.split('-'); ctx.fillText(new Date(y,mo-1,1).toLocaleDateString('es-CO',{month:'short'}), cx, h-6);
+  });
+}
+
+/* ============ Movimientos ============ */
+function viewMovimientos(){
+  return `
+    <div class="page-head"><div><h2>Movimientos</h2><p>Tus ingresos y gastos — privados, solo tú los ves.</p></div></div>
+    <div class="filtros">
+      <select id="f-tipo"><option value="">Todos los tipos</option><option value="ingreso">Solo ingresos</option><option value="gasto">Solo gastos</option></select>
+      <select id="f-mes"><option value="">Todos los meses</option>${mesesDisponibles().map(m=>`<option value="${m.key}">${m.label}</option>`).join('')}</select>
+      <select id="f-medio"><option value="">Todos los medios de pago</option>${medios.map(m=>`<option value="${m.nombre}">${m.nombre}</option>`).join('')}</select>
+    </div>
+    <div class="tabla-wrap"><table>
+      <thead><tr><th>Fecha</th><th>Tipo</th><th>Categoría</th><th>Medio</th><th>Descripción</th><th></th><th style="text-align:right;">Monto</th><th></th></tr></thead>
+      <tbody id="tabla-movs"></tbody>
+    </table></div>
+  `;
+}
+function mesesDisponibles(){
+  const set = new Set(movimientos.map(m=>m.fecha.slice(0,7)));
+  return [...set].sort().reverse().map(key=>{ const [y,mo]=key.split('-'); const label=new Date(y,mo-1,1).toLocaleDateString('es-CO',{month:'long',year:'numeric'}); return {key, label: label.charAt(0).toUpperCase()+label.slice(1)}; });
+}
+function renderTablaMovimientos(){
+  const tbody = document.getElementById('tabla-movs'); if(!tbody) return;
+  const tipo=document.getElementById('f-tipo').value, mes=document.getElementById('f-mes').value, medio=document.getElementById('f-medio').value;
+  let lista = [...movimientos];
+  if(tipo) lista = lista.filter(m=>m.tipo===tipo);
+  if(mes) lista = lista.filter(m=>m.fecha.slice(0,7)===mes);
+  if(medio) lista = lista.filter(m=>m.medio_pago===medio);
+  if(lista.length===0){ tbody.innerHTML='<tr class="empty-row"><td colspan="8">No hay movimientos con estos filtros.</td></tr>'; return; }
+  tbody.innerHTML = lista.map(m=>`
+    <tr>
+      <td>${fmtFecha(m.fecha)}</td><td><span class="badge">${m.tipo==='ingreso'?'Ingreso':'Gasto'}</span></td>
+      <td>${m.categoria}</td><td>${m.medio_pago||'—'}</td><td>${m.descripcion||'—'}</td>
+      <td>${m.documento_url?`<a href="${m.documento_url}" target="_blank" class="icon-btn" title="Ver adjunto">📎</a>`:''}</td>
+      <td class="monto-cell ${m.tipo}" style="text-align:right;">${m.tipo==='gasto'?'-':'+'}${fmt.format(m.monto)}</td>
+      <td style="white-space:nowrap;">
+        <button class="icon-btn" title="Editar" data-editar="${m.id}">✎</button><button class="icon-btn" title="Eliminar" data-borrar="${m.id}">✕</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+/* ============ Nuevo / editar movimiento ============ */
+function viewNuevo(){
+  const editando = editingId ? movimientos.find(m=>m.id===editingId) : null;
+  if(editando) tipoNuevo = editando.tipo;
+  const cats = categoriasPorTipo(tipoNuevo);
+  return `
+    <div class="page-head"><div><h2>${editando?'Editar movimiento':'Nuevo movimiento'}</h2><p>${editando?'Modifica los datos y guarda los cambios.':'Registra un ingreso o un gasto. Puedes adjuntar la foto del documento.'}</p></div></div>
+    <div class="form-card">
+      <div class="form-row"><label>Tipo de movimiento</label>
+        <div class="tipo-toggle">
+          <button type="button" id="btn-gasto" class="${tipoNuevo==='gasto'?'active-gasto':''}">Gasto</button>
+          <button type="button" id="btn-ingreso" class="${tipoNuevo==='ingreso'?'active-ingreso':''}">Ingreso</button>
+        </div>
+      </div>
+      <div class="form-row"><label>Monto (COP)</label><input type="number" id="in-monto" min="0" step="1" value="${editando?editando.monto:''}"></div>
+      <div class="form-row"><label>Categoría</label><select id="in-categoria">${cats.map(c=>`<option value="${c}" ${editando&&editando.categoria===c?'selected':''}>${c}</option>`).join('')}</select></div>
+      <div class="form-row"><label>Fecha</label><input type="date" id="in-fecha" value="${editando?editando.fecha:new Date().toISOString().slice(0,10)}"></div>
+      <div class="form-row"><label>Medio de pago</label><select id="in-medio">${medios.map(m=>`<option value="${m.nombre}" ${editando&&editando.medio_pago===m.nombre?'selected':''}>${m.nombre}</option>`).join('')}</select></div>
+      <div class="form-row"><label>Descripción (opcional)</label><textarea id="in-desc" rows="2">${editando?(editando.descripcion||''):''}</textarea></div>
+      <div class="form-row"><label>Adjuntar foto o PDF (opcional)</label>
+        <div class="file-drop ${editando&&editando.documento_url?'has-file':''}" id="drop-zone">${editando&&editando.documento_url?'✓ '+(editando.documento_nombre||'Documento actual')+' (toca para reemplazar)':'📎 Toca para elegir una foto o PDF'}</div>
+        <input type="file" id="in-file" accept="image/*,application/pdf" style="display:none;">
+        <div class="hint">Se sube a la nube de forma privada — solo tú puedes verlo.</div>
+      </div>
+      <div style="display:flex; gap:10px;">
+        <button class="btn" id="btn-guardar">${editando?'Guardar cambios':'Guardar movimiento'}</button>
+        ${editando?'<button class="btn secondary" id="btn-cancelar-edicion">Cancelar</button>':''}
+      </div>
+    </div>
+  `;
+}
+
+/* ============ Documentos ============ */
+function viewDocumentos(){
+  return `
+    <div class="page-head"><div><h2>Documentos</h2><p>Facturas, desprendibles de pago y extractos bancarios guardados.</p></div></div>
+    <div class="toolbar">
+      <select id="f-doc-tipo"><option value="">Todos</option><option value="factura">Facturas</option><option value="desprendible">Desprendibles</option><option value="extracto">Extractos</option></select>
+      <button class="btn secondary" id="btn-subir-doc">+ Subir documento suelto</button>
+    </div>
+    <div class="docs-grid" id="docs-grid"></div>
+  `;
+}
+function renderDocsGrid(){
+  const grid = document.getElementById('docs-grid'); if(!grid) return;
+  const tipo = document.getElementById('f-doc-tipo').value;
+  let lista = [...documentos]; if(tipo) lista = lista.filter(d=>d.tipo===tipo);
+  const nombresTipo = {factura:'Factura', desprendible:'Desprendible de pago', extracto:'Extracto bancario'};
+  if(lista.length===0){ grid.innerHTML = `<div class="empty-row" style="grid-column:1/-1;">No hay documentos guardados todavía.</div>`; return; }
+  grid.innerHTML = lista.map(d=>`
+    <div class="doc-card">
+      <span class="tipo-tag ${d.tipo}">${nombresTipo[d.tipo]}</span>
+      <div class="nombre">${d.nombre}</div>
+      <div class="acciones">
+        <a href="${d.url}" target="_blank">Ver</a>
+        <button data-borrar-doc="${d.id}">Eliminar</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+/* ============ Reportes ============ */
+function viewReportes(){
+  const meses = mesesDisponibles();
+  return `
+    <div class="page-head"><div><h2>Reportes</h2><p>Genera un resumen de un periodo, descárgalo o compártelo por WhatsApp.</p></div></div>
+    <div class="toolbar">
+      <select id="rep-mes"><option value="">Todo el historial</option>${meses.map(m=>`<option value="${m.key}">${m.label}</option>`).join('')}</select>
+      <button class="btn secondary" id="btn-print">Descargar como PDF</button>
+      <button class="btn secondary" id="btn-whatsapp">Compartir por WhatsApp</button>
+    </div>
+    <div id="reporte-imprimible"></div>
+  `;
+}
+function renderReporte(){
+  const cont = document.getElementById('reporte-imprimible'); if(!cont) return;
+  const mes = document.getElementById('rep-mes').value;
+  let lista = [...movimientos].sort((a,b)=>a.fecha.localeCompare(b.fecha));
+  if(mes) lista = lista.filter(m=>m.fecha.slice(0,7)===mes);
+  const {ingresos, gastos, balance} = totales(lista);
+  const meses = mesesDisponibles();
+  const periodoLabel = mes ? (meses.find(m=>m.key===mes)?.label || mes) : 'Todo el historial';
+  cont.innerHTML = `
+    <div class="tabla-wrap" style="padding:26px 28px;">
+      <div style="display:flex; justify-content:space-between; border-bottom:2px solid var(--tinta); padding-bottom:12px; margin-bottom:16px;">
+        <div><div style="font-size:11px; text-transform:uppercase; color:var(--texto-claro);">Resumen de cuentas</div><h3 style="margin:2px 0;">${periodoLabel}</h3></div>
+        <div style="text-align:right;"><div style="font-size:11px; text-transform:uppercase; color:var(--texto-claro);">Balance</div><div class="mono" style="font-size:22px; font-weight:700; color:${balance>=0?'var(--tinta-clara)':'var(--rojo)'}">${fmt.format(balance)}</div></div>
+      </div>
+      <div class="cards-row" style="margin-bottom:14px;">
+        <div class="card ingreso"><div class="eyebrow">Ingresos</div><div class="valor mono">${fmt.format(ingresos)}</div></div>
+        <div class="card gasto"><div class="eyebrow">Gastos</div><div class="valor mono">${fmt.format(gastos)}</div></div>
+      </div>
+      <table><thead><tr><th>Fecha</th><th>Tipo</th><th>Categoría</th><th>Medio</th><th style="text-align:right;">Monto</th></tr></thead>
+      <tbody>${lista.length?lista.map(m=>`<tr><td>${fmtFecha(m.fecha)}</td><td>${m.tipo==='ingreso'?'Ingreso':'Gasto'}</td><td>${m.categoria}</td><td>${m.medio_pago||'—'}</td><td class="monto-cell ${m.tipo}" style="text-align:right;">${m.tipo==='gasto'?'-':'+'}${fmt.format(m.monto)}</td></tr>`).join(''):'<tr class="empty-row"><td colspan="5">Sin movimientos en este periodo.</td></tr>'}</tbody></table>
+    </div>
+  `;
+  cont.dataset.periodo = periodoLabel;
+  cont.dataset.ingresos = ingresos; cont.dataset.gastos = gastos; cont.dataset.balance = balance;
+}
+function compartirWhatsApp(){
+  const cont = document.getElementById('reporte-imprimible');
+  const texto = `*Finanzas del Reino* — ${cont.dataset.periodo}\n\nIngresos: ${fmt.format(cont.dataset.ingresos)}\nGastos: ${fmt.format(cont.dataset.gastos)}\nBalance: ${fmt.format(cont.dataset.balance)}`;
+  window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, '_blank');
+}
+
+/* ============ Ajustes (solo admin) ============ */
+function viewAjustes(){
+  return `
+    <div class="page-head"><div><h2>${isAdmin?'Categorías y mi distribución':'Mi distribución'}</h2><p>Tus porcentajes son privados — nadie más los ve ni los edita.</p></div></div>
+    <div class="form-card" style="margin-bottom:20px;">
+      <h3 style="margin:0 0 6px; font-size:16px;">Mi distribución de ingresos</h3>
+      <p style="font-size:13px; color:var(--texto-claro); margin:0 0 14px;">Deben sumar 100%. Solo aplican a tus propios movimientos.</p>
+      <div style="display:grid; grid-template-columns:1fr 90px; gap:10px 14px; align-items:center; margin-bottom:14px;">
+        ${Object.keys(NOMBRES_CASILLAS).map(k=>`<label style="font-size:13px;">${NOMBRES_CASILLAS[k]}</label><input type="number" min="0" max="100" data-dist="${k}" value="${distribucion[k]}" style="padding:8px; border:1px solid var(--linea); border-radius:3px; text-align:right;">`).join('')}
+      </div>
+      <button class="btn secondary" id="btn-guardar-distribucion">Guardar mis porcentajes</button>
+    </div>
+    ${isAdmin ? `
+      <div class="locked-note">Estas listas son compartidas por todos los que usan la app. Solo un administrador puede agregarlas o eliminarlas.</div>
+      ${bloqueLista('Categorías de gasto', 'gasto', categoriasPorTipo('gasto'))}
+      ${bloqueLista('Categorías de ingreso', 'ingreso', categoriasPorTipo('ingreso'))}
+      ${bloqueLista('Medios de pago', 'medio', medios.map(m=>m.nombre))}
+    ` : ''}
+  `;
+}
+function bloqueLista(titulo, clave, lista){
+  return `
+    <div class="form-card" style="margin-bottom:20px;">
+      <h3 style="margin:0 0 14px; font-size:16px;">${titulo}</h3>
+      <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px;">
+        ${lista.length?lista.map(item=>`<span class="badge" style="display:inline-flex; align-items:center; gap:6px; padding:6px 10px; font-size:13px;">${item}<button class="icon-btn" style="padding:0; font-size:12px;" data-del-item="${clave}::${item}">✕</button></span>`).join(''):'<span style="color:var(--texto-claro); font-size:13px;">No hay opciones.</span>'}
+      </div>
+      <div style="display:flex; gap:8px;">
+        <input type="text" id="nuevo-${clave}" placeholder="Nueva opción..." style="flex:1; padding:9px 11px; border:1px solid var(--linea); border-radius:3px; background:var(--papel);">
+        <button class="btn secondary" data-add-item="${clave}">Agregar</button>
+      </div>
+    </div>
+  `;
+}
+
+/* ============ Archivos → Supabase Storage ============ */
+async function subirArchivo(file){
+  const ext = file.name.split('.').pop();
+  const path = `${session.user.id}/${Date.now()}.${ext}`;
+  const { error } = await sb.storage.from('recibos').upload(path, file);
+  if(error){ toast('No se pudo subir el archivo: ' + error.message); return null; }
+  const { data } = sb.storage.from('recibos').getPublicUrl(path);
+  return { url: data.publicUrl, nombre: file.name };
+}
+
+/* ============ Handlers ============ */
+function attachHandlers(){
+  if(currentTab==='resumen') drawChart();
+
+  if(currentTab==='movimientos'){
+    renderTablaMovimientos();
+    ['f-tipo','f-mes','f-medio'].forEach(id=>document.getElementById(id).addEventListener('change', renderTablaMovimientos));
+    document.getElementById('tabla-movs').addEventListener('click', async (e)=>{
+      const borrar = e.target.closest('[data-borrar]');
+      const editar = e.target.closest('[data-editar]');
+      if(borrar){
+        if(confirm('¿Eliminar este movimiento?')){
+          const { error } = await sb.from('movements').delete().eq('id', borrar.dataset.borrar);
+          if(error){ toast('No se pudo eliminar: '+error.message); return; }
+          movimientos = movimientos.filter(m=>m.id!==borrar.dataset.borrar);
+          renderTablaMovimientos(); toast('Movimiento eliminado.');
+        }
+      }
+      if(editar){ editingId = editar.dataset.editar; pendingFile=null; currentTab='nuevo'; render(); }
+    });
+  }
+
+  if(currentTab==='nuevo'){
+    document.getElementById('btn-gasto').addEventListener('click', ()=>{ tipoNuevo='gasto'; render(); });
+    document.getElementById('btn-ingreso').addEventListener('click', ()=>{ tipoNuevo='ingreso'; render(); });
+    const dropZone = document.getElementById('drop-zone'), fileInput = document.getElementById('in-file');
+    dropZone.addEventListener('click', ()=>fileInput.click());
+    fileInput.addEventListener('change', ()=>{
+      const file = fileInput.files[0]; if(!file) return;
+      if(file.size > 8*1024*1024){ toast('El archivo es muy pesado (máx. 8MB).'); fileInput.value=''; return; }
+      pendingFile = file;
+      dropZone.textContent = `✓ ${file.name}`; dropZone.classList.add('has-file');
+    });
+
+    document.getElementById('btn-guardar').addEventListener('click', async ()=>{
+      const monto = parseFloat(document.getElementById('in-monto').value);
+      const categoria = document.getElementById('in-categoria').value;
+      const fecha = document.getElementById('in-fecha').value;
+      const medio_pago = document.getElementById('in-medio').value;
+      const descripcion = document.getElementById('in-desc').value.trim();
+      if(!monto || monto<=0){ toast('Ingresa un monto válido.'); return; }
+      if(!fecha){ toast('Selecciona una fecha.'); return; }
+
+      let documento_url = null, documento_nombre = null;
+      const existente = editingId ? movimientos.find(m=>m.id===editingId) : null;
+      if(existente){ documento_url = existente.documento_url; documento_nombre = existente.documento_nombre; }
+
+      if(pendingFile){
+        const subido = await subirArchivo(pendingFile);
+        if(subido){ documento_url = subido.url; documento_nombre = subido.nombre; }
+      }
+
+      const payload = {tipo:tipoNuevo, monto, categoria, medio_pago, fecha, descripcion, documento_url, documento_nombre, created_by: session.user.id};
+
+      if(editingId){
+        const { data, error } = await sb.from('movements').update(payload).eq('id', editingId).select().single();
+        if(error){ toast('No se pudo actualizar: '+error.message); return; }
+        const idx = movimientos.findIndex(m=>m.id===editingId);
+        if(idx>-1) movimientos[idx] = data;
+        toast('Movimiento actualizado.');
+      } else {
+        const { data, error } = await sb.from('movements').insert(payload).select().single();
+        if(error){ toast('No se pudo guardar: '+error.message); return; }
+        movimientos.unshift(data);
+        if(tipoNuevo==='ingreso'){
+          const montos = calcularDistribucion(monto);
+          const detalle = Object.keys(NOMBRES_CASILLAS).map(k=>`${NOMBRES_CASILLAS[k]}: ${fmt.format(montos[k])}`).join(' · ');
+          toast(`Ingreso registrado. ${detalle}`, 6000);
+        } else {
+          toast('Gasto registrado.');
+        }
+      }
+      pendingFile = null; editingId = null; currentTab = 'movimientos'; render();
+    });
+
+    const btnCancelar = document.getElementById('btn-cancelar-edicion');
+    if(btnCancelar) btnCancelar.addEventListener('click', ()=>{ editingId=null; pendingFile=null; currentTab='movimientos'; render(); });
+  }
+
+  if(currentTab==='documentos'){
+    renderDocsGrid();
+    document.getElementById('f-doc-tipo').addEventListener('change', renderDocsGrid);
+    document.getElementById('docs-grid').addEventListener('click', async (e)=>{
+      const borrar = e.target.closest('[data-borrar-doc]');
+      if(borrar){
+        if(confirm('¿Eliminar este documento?')){
+          const { error } = await sb.from('documents').delete().eq('id', borrar.dataset.borrarDoc);
+          if(error){ toast('No se pudo eliminar: '+error.message); return; }
+          documentos = documentos.filter(d=>d.id!==borrar.dataset.borrarDoc);
+          renderDocsGrid(); toast('Documento eliminado.');
+        }
+      }
+    });
+    document.getElementById('btn-subir-doc').addEventListener('click', ()=>{
+      const input = document.createElement('input'); input.type='file'; input.accept='image/*,application/pdf';
+      input.onchange = async ()=>{
+        const file = input.files[0]; if(!file) return;
+        if(file.size > 8*1024*1024){ toast('El archivo es muy pesado (máx. 8MB).'); return; }
+        const tipoDoc = prompt('¿Qué tipo de documento es? factura, desprendible o extracto', 'extracto');
+        if(!tipoDoc || !['factura','desprendible','extracto'].includes(tipoDoc.trim())){ toast('Tipo no válido.'); return; }
+        const subido = await subirArchivo(file);
+        if(!subido) return;
+        const { data, error } = await sb.from('documents').insert({tipo:tipoDoc.trim(), nombre:subido.nombre, url:subido.url, created_by:session.user.id}).select().single();
+        if(error){ toast('No se pudo guardar: '+error.message); return; }
+        documentos.unshift(data); renderDocsGrid(); toast('Documento guardado.');
+      };
+      input.click();
+    });
+  }
+
+  if(currentTab==='reportes'){
+    renderReporte();
+    document.getElementById('rep-mes').addEventListener('change', renderReporte);
+    document.getElementById('btn-print').addEventListener('click', ()=>window.print());
+    document.getElementById('btn-whatsapp').addEventListener('click', compartirWhatsApp);
+  }
+
+  if(currentTab==='ajustes'){
+    document.getElementById('btn-guardar-distribucion').addEventListener('click', async ()=>{
+      const inputs = document.querySelectorAll('[data-dist]');
+      const nueva = {}; let suma = 0;
+      inputs.forEach(inp=>{ const val = parseFloat(inp.value)||0; nueva[inp.dataset.dist]=val; suma+=val; });
+      if(Math.round(suma)!==100){ toast(`Los porcentajes deben sumar 100% (ahora suman ${suma}%).`, 4000); return; }
+      const { error } = await sb.from('distribution_settings').update({...nueva, updated_at:new Date().toISOString()}).eq('user_id', session.user.id);
+      if(error){ toast('No se pudo guardar: '+error.message); return; }
+      distribucion = nueva; toast('Tus porcentajes se actualizaron.'); render();
+    });
+    if(!isAdmin) return;
+    document.querySelectorAll('[data-del-item]').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        const [clave, item] = btn.dataset.delItem.split('::');
+        if(!confirm(`¿Eliminar "${item}"?`)) return;
+        if(clave==='medio'){
+          const row = medios.find(m=>m.nombre===item);
+          const { error } = await sb.from('payment_methods').delete().eq('id', row.id);
+          if(error){ toast('No se pudo eliminar: '+error.message); return; }
+          medios = medios.filter(m=>m.id!==row.id);
+        } else {
+          const row = categorias.find(c=>c.tipo===clave && c.nombre===item);
+          const { error } = await sb.from('categories').delete().eq('id', row.id);
+          if(error){ toast('No se pudo eliminar: '+error.message); return; }
+          categorias = categorias.filter(c=>c.id!==row.id);
+        }
+        toast('Eliminado.'); render();
+      });
+    });
+    document.querySelectorAll('[data-add-item]').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        const clave = btn.dataset.addItem;
+        const input = document.getElementById('nuevo-'+clave);
+        const valor = input.value.trim();
+        if(!valor){ toast('Escribe un nombre.'); return; }
+        if(clave==='medio'){
+          const { data, error } = await sb.from('payment_methods').insert({nombre:valor, created_by:session.user.id}).select().single();
+          if(error){ toast('Ya existe o no se pudo agregar.'); return; }
+          medios.push(data);
+        } else {
+          const { data, error } = await sb.from('categories').insert({tipo:clave, nombre:valor, created_by:session.user.id}).select().single();
+          if(error){ toast('Ya existe o no se pudo agregar.'); return; }
+          categorias.push(data);
+        }
+        toast('Agregado.'); render();
+      });
+    });
+  }
+}
+</script>
+</body>
+</html>
