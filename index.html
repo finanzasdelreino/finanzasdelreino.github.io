@@ -116,6 +116,17 @@
   .doc-card .acciones{display:flex; gap:8px;}
   .doc-card .acciones a, .doc-card .acciones button{flex:1; font-size:12px; padding:7px; border-radius:3px; border:1px solid var(--linea); background:var(--papel); cursor:pointer; text-align:center; text-decoration:none; color:var(--texto);}
 
+  .cuentas-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:14px; margin-bottom:22px;}
+  .cuenta-card{background:var(--blanco); border:1px solid var(--linea); border-radius:4px; box-shadow:var(--sombra); padding:17px 18px;}
+  .cuenta-card .tipo-tag{display:inline-block; font-size:10px; text-transform:uppercase; padding:3px 8px; border-radius:20px; margin-bottom:9px; font-weight:600;}
+  .tipo-tag.tarjeta_credito{background:#F3E4CE; color:#8A5A16;} .tipo-tag.ahorros{background:#DCEAE1; color:var(--tinta-clara);}
+  .cuenta-card .nombre{font-weight:600; font-size:14.5px; margin-bottom:8px;}
+  .cuenta-card .saldo{font-family:'IBM Plex Mono',monospace; font-size:21px; font-weight:600; margin-bottom:10px;}
+  .cuenta-card .saldo.deuda{color:var(--rojo);} .cuenta-card .saldo.disponible{color:var(--tinta-clara);}
+  .cuenta-card .detalle-fila{display:flex; justify-content:space-between; font-size:12.5px; color:var(--texto-claro); padding:5px 0; border-top:1px solid var(--papel-oscuro);}
+  .cuenta-card .acciones{display:flex; gap:8px; margin-top:13px;}
+  .cuenta-card .acciones button{flex:1; font-size:12px; padding:7px; border-radius:3px; border:1px solid var(--linea); background:var(--papel); cursor:pointer; color:var(--texto);}
+
   .toolbar{display:flex; gap:10px; margin-bottom:18px; flex-wrap:wrap;}
   canvas{max-width:100%;}
   .toast{position:fixed; bottom:22px; right:22px; background:var(--tinta); color:var(--papel); padding:12px 18px; border-radius:4px; font-size:13.5px; box-shadow:0 8px 24px rgba(0,0,0,.25); opacity:0; transform:translateY(8px); transition:all .25s ease; pointer-events:none; z-index:999; max-width:340px; line-height:1.5;}
@@ -180,11 +191,15 @@ let session = null;
 let profile = null; // {id, email, role}
 let isAdmin = false;
 let movimientos = [], documentos = [], categorias = [], medios = [], distribucion = {diezmo:10,ahorro:20,gastos:50,estilo:20};
+let cuentas = [];
 let currentTab = 'resumen';
 let tipoNuevo = 'gasto';
 let editingId = null;
 let pendingFile = null;
 let authMode = 'login';
+let editingCuentaId = null;
+let showFormCuenta = false;
+let tipoCuentaNuevo = 'tarjeta_credito';
 
 const fmt = new Intl.NumberFormat('es-CO', {style:'currency', currency:'COP', maximumFractionDigits:0});
 const fmtFecha = (iso) => new Date(iso+'T00:00:00').toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'numeric'});
@@ -264,18 +279,20 @@ async function afterLogin(){
 
 /* ============ Carga de datos desde Supabase ============ */
 async function loadAll(){
-  const [movR, docR, catR, medR, distR] = await Promise.all([
+  const [movR, docR, catR, medR, distR, cuentR] = await Promise.all([
     sb.from('movements').select('*').order('fecha', {ascending:false}),
     sb.from('documents').select('*').order('created_at', {ascending:false}),
     sb.from('categories').select('*').order('nombre'),
     sb.from('payment_methods').select('*').order('nombre'),
-    sb.from('distribution_settings').select('*').eq('user_id', session.user.id).single()
+    sb.from('distribution_settings').select('*').eq('user_id', session.user.id).single(),
+    sb.from('accounts').select('*').order('created_at')
   ]);
   movimientos = movR.data || [];
   documentos = docR.data || [];
   categorias = catR.data || [];
   medios = medR.data || [];
   if(distR.data) distribucion = distR.data;
+  cuentas = cuentR.data || [];
 }
 
 function categoriasPorTipo(tipo){ return categorias.filter(c=>c.tipo===tipo).map(c=>c.nombre); }
@@ -284,11 +301,12 @@ function categoriasPorTipo(tipo){ return categorias.filter(c=>c.tipo===tipo).map
 function tabsDisponibles(){
   const base = [
     {id:'resumen', num:'01', label:'Resumen'},
-    {id:'movimientos', num:'02', label:'Movimientos'},
-    {id:'nuevo', num:'03', label:'Nuevo movimiento'},
-    {id:'documentos', num:'04', label:'Documentos'},
-    {id:'reportes', num:'05', label:'Reportes'},
-    {id:'ajustes', num:'06', label: isAdmin ? 'Categorías y mi distribución' : 'Mi distribución'},
+    {id:'cuentas', num:'02', label:'Tarjetas y ahorros'},
+    {id:'movimientos', num:'03', label:'Movimientos'},
+    {id:'nuevo', num:'04', label:'Nuevo movimiento'},
+    {id:'documentos', num:'05', label:'Documentos'},
+    {id:'reportes', num:'06', label:'Reportes'},
+    {id:'ajustes', num:'07', label: isAdmin ? 'Categorías y mi distribución' : 'Mi distribución'},
   ];
   return base;
 }
@@ -301,6 +319,7 @@ function renderNav(){
   nav.querySelectorAll('.tab-btn').forEach(b=>{
     b.addEventListener('click', ()=>{
       if(b.dataset.tab==='nuevo'){ editingId=null; pendingFile=null; }
+      if(b.dataset.tab==='cuentas'){ showFormCuenta=false; editingCuentaId=null; }
       currentTab = b.dataset.tab; render();
     });
   });
@@ -310,6 +329,7 @@ function render(){
   renderNav();
   const page = document.getElementById('page');
   if(currentTab==='resumen') page.innerHTML = viewResumen();
+  else if(currentTab==='cuentas') page.innerHTML = viewCuentas();
   else if(currentTab==='movimientos') page.innerHTML = viewMovimientos();
   else if(currentTab==='nuevo') page.innerHTML = viewNuevo();
   else if(currentTab==='documentos') page.innerHTML = viewDocumentos();
@@ -395,6 +415,65 @@ function drawChart(){
     ctx.fillStyle='#6B6354'; ctx.font='11px "IBM Plex Mono"'; ctx.textAlign='center';
     const [y,mo]=k.split('-'); ctx.fillText(new Date(y,mo-1,1).toLocaleDateString('es-CO',{month:'short'}), cx, h-6);
   });
+}
+
+/* ============ Tarjetas y ahorros ============ */
+const NOMBRES_TIPO_CUENTA = {tarjeta_credito:'Tarjeta de crédito', ahorros:'Cuenta de ahorros'};
+function viewCuentas(){
+  const editando = editingCuentaId ? cuentas.find(c=>c.id===editingCuentaId) : null;
+  return `
+    <div class="page-head">
+      <div><h2>Tarjetas y ahorros</h2><p>Tus cuentas — privadas, solo tú las ves.</p></div>
+      ${!showFormCuenta ? '<button class="btn" id="btn-nueva-cuenta">+ Agregar cuenta</button>' : ''}
+    </div>
+    ${showFormCuenta ? formCuenta(editando) : ''}
+    <div class="cuentas-grid" id="grid-cuentas">
+      ${cuentas.length ? cuentas.map(c=>tarjetaCuentaHTML(c)).join('') : '<div class="empty-row" style="grid-column:1/-1;">Aún no has agregado tarjetas ni cuentas de ahorro.</div>'}
+    </div>
+  `;
+}
+function tarjetaCuentaHTML(c){
+  const esTarjeta = c.tipo==='tarjeta_credito';
+  return `
+    <div class="cuenta-card">
+      <span class="tipo-tag ${c.tipo}">${NOMBRES_TIPO_CUENTA[c.tipo]}</span>
+      <div class="nombre">${c.nombre}</div>
+      <div class="saldo ${esTarjeta?'deuda':'disponible'}">${fmt.format(c.saldo)}</div>
+      ${esTarjeta ? `
+        <div class="detalle-fila"><span>Día de corte</span><span>${c.dia_corte||'—'}</span></div>
+        <div class="detalle-fila"><span>Día de pago</span><span>${c.dia_pago||'—'}</span></div>
+        <div class="detalle-fila"><span>Cuotas</span><span>${c.cuotas||0}</span></div>
+      ` : ''}
+      <div class="acciones">
+        <button data-editar-cuenta="${c.id}">Editar</button>
+        <button data-borrar-cuenta="${c.id}">Eliminar</button>
+      </div>
+    </div>
+  `;
+}
+function formCuenta(editando){
+  const esTarjeta = tipoCuentaNuevo==='tarjeta_credito';
+  return `
+    <div class="form-card" style="margin-bottom:24px;">
+      <div class="form-row"><label>Tipo de cuenta</label>
+        <div class="tipo-toggle">
+          <button type="button" id="btn-tipo-tarjeta" class="${esTarjeta?'active-gasto':''}">Tarjeta de crédito</button>
+          <button type="button" id="btn-tipo-ahorros" class="${!esTarjeta?'active-ingreso':''}">Cuenta de ahorros</button>
+        </div>
+      </div>
+      <div class="form-row"><label>Nombre</label><input type="text" id="in-cuenta-nombre" placeholder="Ej. Tarjeta Bancolombia Visa" value="${editando?editando.nombre:''}"></div>
+      <div class="form-row"><label>${esTarjeta?'Saldo actual (lo que debes)':'Saldo disponible'}</label><input type="number" id="in-cuenta-saldo" min="0" step="1" value="${editando?editando.saldo:''}"></div>
+      ${esTarjeta ? `
+        <div class="form-row"><label>Día de corte (1-31)</label><input type="number" id="in-cuenta-corte" min="1" max="31" value="${editando&&editando.dia_corte?editando.dia_corte:''}"></div>
+        <div class="form-row"><label>Día de pago (1-31)</label><input type="number" id="in-cuenta-pago" min="1" max="31" value="${editando&&editando.dia_pago?editando.dia_pago:''}"></div>
+        <div class="form-row"><label>Cuotas actuales</label><input type="number" id="in-cuenta-cuotas" min="0" step="1" value="${editando&&editando.cuotas?editando.cuotas:''}"></div>
+      ` : ''}
+      <div style="display:flex; gap:10px;">
+        <button class="btn" id="btn-guardar-cuenta">${editando?'Guardar cambios':'Guardar cuenta'}</button>
+        <button class="btn secondary" id="btn-cancelar-cuenta">Cancelar</button>
+      </div>
+    </div>
+  `;
 }
 
 /* ============ Movimientos ============ */
@@ -590,6 +669,60 @@ async function subirArchivo(file){
 /* ============ Handlers ============ */
 function attachHandlers(){
   if(currentTab==='resumen') drawChart();
+
+  if(currentTab==='cuentas'){
+    const btnNueva = document.getElementById('btn-nueva-cuenta');
+    if(btnNueva) btnNueva.addEventListener('click', ()=>{ showFormCuenta=true; editingCuentaId=null; tipoCuentaNuevo='tarjeta_credito'; render(); });
+
+    if(showFormCuenta){
+      document.getElementById('btn-tipo-tarjeta').addEventListener('click', ()=>{ tipoCuentaNuevo='tarjeta_credito'; render(); });
+      document.getElementById('btn-tipo-ahorros').addEventListener('click', ()=>{ tipoCuentaNuevo='ahorros'; render(); });
+      document.getElementById('btn-cancelar-cuenta').addEventListener('click', ()=>{ showFormCuenta=false; editingCuentaId=null; render(); });
+      document.getElementById('btn-guardar-cuenta').addEventListener('click', async ()=>{
+        const nombre = document.getElementById('in-cuenta-nombre').value.trim();
+        const saldo = parseFloat(document.getElementById('in-cuenta-saldo').value);
+        if(!nombre){ toast('Escribe un nombre para la cuenta.'); return; }
+        if(isNaN(saldo) || saldo<0){ toast('Ingresa un saldo válido.'); return; }
+        const payload = {tipo:tipoCuentaNuevo, nombre, saldo, updated_at:new Date().toISOString(), created_by:session.user.id};
+        if(tipoCuentaNuevo==='tarjeta_credito'){
+          const corte = parseInt(document.getElementById('in-cuenta-corte').value);
+          const pago = parseInt(document.getElementById('in-cuenta-pago').value);
+          const cuotasVal = parseInt(document.getElementById('in-cuenta-cuotas').value)||0;
+          if(!corte || corte<1 || corte>31){ toast('Ingresa un día de corte válido (1-31).'); return; }
+          if(!pago || pago<1 || pago>31){ toast('Ingresa un día de pago válido (1-31).'); return; }
+          payload.dia_corte = corte; payload.dia_pago = pago; payload.cuotas = cuotasVal;
+        } else {
+          payload.dia_corte = null; payload.dia_pago = null; payload.cuotas = null;
+        }
+        if(editingCuentaId){
+          const { data, error } = await sb.from('accounts').update(payload).eq('id', editingCuentaId).select().single();
+          if(error){ toast('No se pudo actualizar: '+error.message); return; }
+          const idx = cuentas.findIndex(c=>c.id===editingCuentaId); if(idx>-1) cuentas[idx]=data;
+          toast('Cuenta actualizada.');
+        } else {
+          const { data, error } = await sb.from('accounts').insert(payload).select().single();
+          if(error){ toast('No se pudo guardar: '+error.message); return; }
+          cuentas.push(data);
+          toast('Cuenta guardada.');
+        }
+        showFormCuenta=false; editingCuentaId=null; render();
+      });
+    }
+
+    document.getElementById('grid-cuentas').addEventListener('click', async (e)=>{
+      const editar = e.target.closest('[data-editar-cuenta]');
+      const borrar = e.target.closest('[data-borrar-cuenta]');
+      if(editar){ editingCuentaId = editar.dataset.editarCuenta; tipoCuentaNuevo = cuentas.find(c=>c.id===editingCuentaId).tipo; showFormCuenta=true; render(); }
+      if(borrar){
+        if(confirm('¿Eliminar esta cuenta?')){
+          const { error } = await sb.from('accounts').delete().eq('id', borrar.dataset.borrarCuenta);
+          if(error){ toast('No se pudo eliminar: '+error.message); return; }
+          cuentas = cuentas.filter(c=>c.id!==borrar.dataset.borrarCuenta);
+          render(); toast('Cuenta eliminada.');
+        }
+      }
+    });
+  }
 
   if(currentTab==='movimientos'){
     renderTablaMovimientos();

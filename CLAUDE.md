@@ -6,8 +6,9 @@ Para el detalle completo del producto (qué hace, diseño, decisiones) lee **`PR
 
 ## Estructura
 
-- `index.html` — toda la app (HTML + CSS + JS en un solo archivo). Incluye el login de Supabase Auth, las vistas (Resumen, Movimientos, Nuevo movimiento, Documentos, Reportes, Ajustes) y toda la lógica de datos.
-- `supabase-schema.sql` — esquema completo para pegar en el SQL Editor de Supabase (tablas, RLS, datos iniciales).
+- `index.html` — toda la app (HTML + CSS + JS en un solo archivo). Incluye el login de Supabase Auth, las vistas (Resumen, Tarjetas y ahorros, Movimientos, Nuevo movimiento, Documentos, Reportes, Ajustes) y toda la lógica de datos.
+- `supabase-schema.sql` — esquema completo original para pegar en el SQL Editor de Supabase (tablas, RLS, datos iniciales).
+- `supabase-schema-v2-cuentas.sql` — migración incremental: tabla `accounts` (tarjetas de crédito y cuentas de ahorro, privada por usuario) con saldo, día de corte, día de pago y cuotas. Ejecutar solo si el proyecto de Supabase ya tenía el esquema original y aún no tiene esta tabla.
 - `manifest.json`, `service-worker.js`, `icon-*.png` — lo necesario para que sea instalable como PWA.
 
 ## Estado / pendientes
