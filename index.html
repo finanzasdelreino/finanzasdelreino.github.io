@@ -70,6 +70,9 @@
   .sello.bad{border-color:var(--rojo); color:var(--rojo); background:rgba(166,61,47,0.05);}
   .sello strong{font-size:14px; margin-top:2px;}
 
+  .alerta-vencimiento{background:#FBE3DE; border-left:4px solid var(--rojo); border-radius:4px; padding:13px 20px; margin-bottom:18px; font-size:13.5px; color:var(--rojo); line-height:1.7;}
+  .alerta-vencimiento strong{color:var(--texto);}
+
   .versiculo-card{background:var(--papel-oscuro); border-left:4px solid var(--dorado); border-radius:4px; padding:16px 22px; margin-bottom:22px; font-family:'Fraunces',serif; font-style:italic; font-size:15px; line-height:1.5; color:var(--tinta);}
   .versiculo-card .ref{display:block; margin-top:8px; font-family:'IBM Plex Sans',sans-serif; font-style:normal; font-size:11.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--dorado); font-weight:600;}
 
@@ -391,6 +394,7 @@ function viewResumen(){
       <div><h2>Resumen general</h2><p>Todo lo que ha entrado y salido, en un solo vistazo.</p></div>
       <div class="sello ${positivo?'':'bad'}"><span>Balance</span><strong>${positivo?'AL DÍA':'REVISAR'}</strong></div>
     </div>
+    ${alertasVencimientosHTML()}
     ${versiculoHTML()}
     <div class="cards-row">
       <div class="card ingreso"><div class="eyebrow">Ingresos totales</div><div class="valor mono">${fmt.format(ingresos)}</div></div>
@@ -417,6 +421,35 @@ function viewResumen(){
           `).join('') : '<tr class="empty-row"><td colspan="4">Aún no hay movimientos. Ve a "Nuevo movimiento".</td></tr>'}
         </tbody>
       </table>
+    </div>
+  `;
+}
+
+function diasHastaDia(diaObjetivo){
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  let candidato = new Date(hoy.getFullYear(), hoy.getMonth(), diaObjetivo);
+  if(candidato < hoy) candidato = new Date(hoy.getFullYear(), hoy.getMonth()+1, diaObjetivo);
+  return Math.round((candidato - hoy) / 86400000);
+}
+function textoDias(dias){
+  if(dias===0) return 'es hoy';
+  if(dias===1) return 'es mañana';
+  return `es en ${dias} días`;
+}
+function alertasVencimientos(){
+  const alertas = [];
+  cuentas.filter(c=>c.tipo==='tarjeta_credito').forEach(c=>{
+    if(c.dia_corte){ const d = diasHastaDia(c.dia_corte); if(d<=3) alertas.push({nombre:c.nombre, etiqueta:'Fecha de corte', dias:d}); }
+    if(c.dia_pago){ const d = diasHastaDia(c.dia_pago); if(d<=3) alertas.push({nombre:c.nombre, etiqueta:'Fecha de pago', dias:d}); }
+  });
+  return alertas.sort((a,b)=>a.dias-b.dias);
+}
+function alertasVencimientosHTML(){
+  const alertas = alertasVencimientos();
+  if(alertas.length===0) return '';
+  return `
+    <div class="alerta-vencimiento">
+      ${alertas.map(a=>`<div>⚠ <strong>${a.nombre}</strong> — ${a.etiqueta} ${textoDias(a.dias)}.</div>`).join('')}
     </div>
   `;
 }
