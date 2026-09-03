@@ -499,7 +499,7 @@ function viewCuentas(){
   const editando = editingCuentaId ? cuentas.find(c=>c.id===editingCuentaId) : null;
   return `
     <div class="page-head">
-      <div><h2>Tarjetas y ahorros</h2><p>Tus cuentas — privadas, solo tú las ves.</p></div>
+      <div><h2>Tarjetas y ahorros</h2><p>Tus cuentas — privadas, solo tú las ves. Al registrar un movimiento eligiendo una de estas cuentas como medio de pago, el saldo se actualiza solo.</p></div>
       ${!showFormCuenta ? '<button class="btn" id="btn-nueva-cuenta">+ Agregar cuenta</button>' : ''}
     </div>
     ${showFormCuenta ? formCuenta(editando) : ''}
@@ -592,6 +592,20 @@ function renderTablaMovimientos(){
   `).join('');
 }
 
+/* ============ Vincular movimientos con saldo de cuentas ============ */
+async function ajustarSaldoCuenta(nombreMedio, tipoMov, montoDelta){
+  const cuenta = cuentas.find(c=>c.nombre===nombreMedio);
+  if(!cuenta) return;
+  let delta = 0;
+  if(cuenta.tipo==='tarjeta_credito' && tipoMov==='gasto') delta = montoDelta;
+  else if(cuenta.tipo==='ahorros' && tipoMov==='gasto') delta = -montoDelta;
+  else if(cuenta.tipo==='ahorros' && tipoMov==='ingreso') delta = montoDelta;
+  else return;
+  const nuevoSaldo = Number(cuenta.saldo) + delta;
+  const { data, error } = await sb.from('accounts').update({saldo:nuevoSaldo, updated_at:new Date().toISOString()}).eq('id', cuenta.id).select().single();
+  if(!error && data){ const idx = cuentas.findIndex(c=>c.id===cuenta.id); if(idx>-1) cuentas[idx]=data; }
+}
+
 /* ============ Nuevo / editar movimiento ============ */
 function viewNuevo(){
   const editando = editingId ? movimientos.find(m=>m.id===editingId) : null;
@@ -609,7 +623,12 @@ function viewNuevo(){
       <div class="form-row"><label>Monto (COP)</label><input type="number" id="in-monto" min="0" step="1" value="${editando?editando.monto:''}"></div>
       <div class="form-row"><label>Categoría</label><select id="in-categoria">${cats.map(c=>`<option value="${c}" ${editando&&editando.categoria===c?'selected':''}>${c}</option>`).join('')}</select></div>
       <div class="form-row"><label>Fecha</label><input type="date" id="in-fecha" value="${editando?editando.fecha:new Date().toISOString().slice(0,10)}"></div>
-      <div class="form-row"><label>Medio de pago</label><select id="in-medio">${medios.map(m=>`<option value="${m.nombre}" ${editando&&editando.medio_pago===m.nombre?'selected':''}>${m.nombre}</option>`).join('')}</select></div>
+      <div class="form-row"><label>Medio de pago</label><select id="in-medio">
+        <optgroup label="Medios generales">${medios.map(m=>`<option value="${m.nombre}" ${editando&&editando.medio_pago===m.nombre?'selected':''}>${m.nombre}</option>`).join('')}</optgroup>
+        ${cuentas.length?`<optgroup label="Mis tarjetas y cuentas">${cuentas.map(c=>`<option value="${c.nombre}" ${editando&&editando.medio_pago===c.nombre?'selected':''}>${c.nombre}</option>`).join('')}</optgroup>`:''}
+      </select>
+      <div class="hint">Si eliges una de tus tarjetas o tu cuenta de ahorros, su saldo se ajusta automáticamente.</div>
+      </div>
       <div class="form-row"><label>Descripción (opcional)</label><textarea id="in-desc" rows="2">${editando?(editando.descripcion||''):''}</textarea></div>
       <div class="form-row"><label>Adjuntar foto o PDF (opcional)</label>
         <div class="file-drop ${editando&&editando.documento_url?'has-file':''}" id="drop-zone">${editando&&editando.documento_url?'✓ '+(editando.documento_nombre||'Documento actual')+' (toca para reemplazar)':'📎 Toca para elegir una foto o PDF'}</div>
@@ -808,8 +827,10 @@ function attachHandlers(){
       const editar = e.target.closest('[data-editar]');
       if(borrar){
         if(confirm('¿Eliminar este movimiento?')){
+          const mov = movimientos.find(m=>m.id===borrar.dataset.borrar);
           const { error } = await sb.from('movements').delete().eq('id', borrar.dataset.borrar);
           if(error){ toast('No se pudo eliminar: '+error.message); return; }
+          if(mov && mov.medio_pago) await ajustarSaldoCuenta(mov.medio_pago, mov.tipo, -Number(mov.monto));
           movimientos = movimientos.filter(m=>m.id!==borrar.dataset.borrar);
           renderTablaMovimientos(); toast('Movimiento eliminado.');
         }
@@ -853,12 +874,15 @@ function attachHandlers(){
       if(editingId){
         const { data, error } = await sb.from('movements').update(payload).eq('id', editingId).select().single();
         if(error){ toast('No se pudo actualizar: '+error.message); return; }
+        if(existente && existente.medio_pago) await ajustarSaldoCuenta(existente.medio_pago, existente.tipo, -Number(existente.monto));
+        if(medio_pago) await ajustarSaldoCuenta(medio_pago, tipoNuevo, monto);
         const idx = movimientos.findIndex(m=>m.id===editingId);
         if(idx>-1) movimientos[idx] = data;
         toast('Movimiento actualizado.');
       } else {
         const { data, error } = await sb.from('movements').insert(payload).select().single();
         if(error){ toast('No se pudo guardar: '+error.message); return; }
+        if(medio_pago) await ajustarSaldoCuenta(medio_pago, tipoNuevo, monto);
         movimientos.unshift(data);
         if(tipoNuevo==='ingreso'){
           const montos = calcularDistribucion(monto);
