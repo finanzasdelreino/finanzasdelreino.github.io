@@ -70,6 +70,9 @@
   .sello.bad{border-color:var(--rojo); color:var(--rojo); background:rgba(166,61,47,0.05);}
   .sello strong{font-size:14px; margin-top:2px;}
 
+  .versiculo-card{background:var(--papel-oscuro); border-left:4px solid var(--dorado); border-radius:4px; padding:16px 22px; margin-bottom:22px; font-family:'Fraunces',serif; font-style:italic; font-size:15px; line-height:1.5; color:var(--tinta);}
+  .versiculo-card .ref{display:block; margin-top:8px; font-family:'IBM Plex Sans',sans-serif; font-style:normal; font-size:11.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--dorado); font-weight:600;}
+
   .cards-row{display:flex; gap:16px; margin-bottom:24px; flex-wrap:wrap;}
   .card{background:var(--blanco); border:1px solid var(--linea); border-radius:4px; padding:16px 18px; flex:1; min-width:160px; box-shadow:var(--sombra);}
   .card .eyebrow{font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--texto-claro); margin-bottom:6px;}
@@ -204,6 +207,35 @@ let tipoCuentaNuevo = 'tarjeta_credito';
 const fmt = new Intl.NumberFormat('es-CO', {style:'currency', currency:'COP', maximumFractionDigits:0});
 const fmtFecha = (iso) => new Date(iso+'T00:00:00').toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'numeric'});
 const NOMBRES_CASILLAS = {diezmo:'Diezmo', ahorro:'Ahorro e inversión (fondo de oportunidades)', gastos:'Gastos necesarios', estilo:'Estilo de vida'};
+
+const VERSICULOS = [
+  {texto:'Honra a Jehová con tus bienes, y con las primicias de todos tus frutos; y serán llenos tus graneros con abundancia.', ref:'Proverbios 3:9-10'},
+  {texto:'Traed todos los diezmos al alfolí y haya alimento en mi casa; y probadme ahora en esto, dice Jehová de los ejércitos, si no os abriré las ventanas de los cielos, y derramaré sobre vosotros bendición hasta que sobreabunde.', ref:'Malaquías 3:10'},
+  {texto:'Porque donde esté vuestro tesoro, allí estará también vuestro corazón.', ref:'Mateo 6:21'},
+  {texto:'Mas buscad primeramente el reino de Dios y su justicia, y todas estas cosas os serán añadidas.', ref:'Mateo 6:33'},
+  {texto:'Dad, y se os dará; medida buena, apretada, remecida y rebosando darán en vuestro regazo.', ref:'Lucas 6:38'},
+  {texto:'Cada uno dé como propuso en su corazón: no con tristeza, ni por necesidad, porque Dios ama al dador alegre.', ref:'2 Corintios 9:7'},
+  {texto:'Mi Dios, pues, suplirá todo lo que os falta conforme a sus riquezas en gloria en Cristo Jesús.', ref:'Filipenses 4:19'},
+  {texto:'El rico se enseñorea de los pobres, y el que toma prestado es siervo del que presta.', ref:'Proverbios 22:7'},
+  {texto:'No debáis a nadie nada, sino el amaros unos a otros.', ref:'Romanos 13:8'},
+  {texto:'Porque raíz de todos los males es el amor al dinero, el cual codiciando algunos, se extraviaron de la fe.', ref:'1 Timoteo 6:10'},
+  {texto:'Sean vuestras costumbres sin avaricia, contentos con lo que tenéis ahora; porque él dijo: No te desampararé, ni te dejaré.', ref:'Hebreos 13:5'},
+  {texto:'Ve a la hormiga, oh perezoso, mira sus caminos, y sé sabio; la cual no teniendo capitán, ni gobernador, ni señor, prepara en el verano su comida.', ref:'Proverbios 6:6-8'},
+  {texto:'Los pensamientos del diligente ciertamente tienden a la abundancia; mas todo el que se apresura alocadamente, de cierto va a la pobreza.', ref:'Proverbios 21:5'},
+  {texto:'El que es fiel en lo muy poco, también en lo más es fiel; y el que en lo muy poco es injusto, también en lo más es injusto.', ref:'Lucas 16:10'},
+  {texto:'El que siembra escasamente, también segará escasamente; y el que siembra generosamente, generosamente también segará.', ref:'2 Corintios 9:6'},
+  {texto:'Procura con diligencia conocer el estado de tus ovejas, y mira con cuidado por tus rebaños.', ref:'Proverbios 27:23'},
+  {texto:'El impío toma prestado y no paga; mas el justo tiene misericordia, y da.', ref:'Salmos 37:21'},
+  {texto:'La bendición de Jehová es la que enriquece, y no añade tristeza con ella.', ref:'Proverbios 10:22'},
+  {texto:'No os hagáis tesoros en la tierra, donde la polilla y el orín corrompen, y donde ladrones minan y hurtan.', ref:'Mateo 6:19'},
+  {texto:'El que ama el dinero no se saciará de dinero, y el que ama el mucho tener no se saciará de ganancia.', ref:'Eclesiastés 5:10'},
+];
+function versiculoDelDia(){
+  const inicio = new Date(new Date().getFullYear(),0,0);
+  const diff = new Date() - inicio;
+  const diaDelAnio = Math.floor(diff / 86400000);
+  return VERSICULOS[diaDelAnio % VERSICULOS.length];
+}
 
 function toast(msg, ms){
   const t = document.getElementById('toast');
@@ -359,6 +391,7 @@ function viewResumen(){
       <div><h2>Resumen general</h2><p>Todo lo que ha entrado y salido, en un solo vistazo.</p></div>
       <div class="sello ${positivo?'':'bad'}"><span>Balance</span><strong>${positivo?'AL DÍA':'REVISAR'}</strong></div>
     </div>
+    ${versiculoHTML()}
     <div class="cards-row">
       <div class="card ingreso"><div class="eyebrow">Ingresos totales</div><div class="valor mono">${fmt.format(ingresos)}</div></div>
       <div class="card gasto"><div class="eyebrow">Gastos totales</div><div class="valor mono">${fmt.format(gastos)}</div></div>
@@ -384,6 +417,16 @@ function viewResumen(){
           `).join('') : '<tr class="empty-row"><td colspan="4">Aún no hay movimientos. Ve a "Nuevo movimiento".</td></tr>'}
         </tbody>
       </table>
+    </div>
+  `;
+}
+
+function versiculoHTML(){
+  const v = versiculoDelDia();
+  return `
+    <div class="versiculo-card">
+      “${v.texto}”
+      <span class="ref">${v.ref}</span>
     </div>
   `;
 }
