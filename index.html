@@ -133,6 +133,13 @@
   .cuenta-card .acciones{display:flex; gap:8px; margin-top:13px;}
   .cuenta-card .acciones button{flex:1; font-size:12px; padding:7px; border-radius:3px; border:1px solid var(--linea); background:var(--papel); cursor:pointer; color:var(--texto);}
 
+  .pie-row{display:flex; gap:28px; align-items:center; flex-wrap:wrap;}
+  .pie-leyenda{flex:1; min-width:180px; display:flex; flex-direction:column; gap:8px;}
+  .pie-leyenda .item{display:flex; align-items:center; gap:8px; font-size:13px;}
+  .pie-leyenda .punto{width:11px; height:11px; border-radius:50%; flex-shrink:0;}
+  .pie-leyenda .nombre{flex:1;}
+  .pie-leyenda .monto{font-family:'IBM Plex Mono',monospace; font-weight:600; color:var(--texto-claro); white-space:nowrap;}
+
   .toolbar{display:flex; gap:10px; margin-bottom:18px; flex-wrap:wrap;}
   canvas{max-width:100%;}
   .fab{display:none; position:fixed; bottom:26px; right:26px; width:56px; height:56px; border-radius:50%; border:none; background:var(--dorado); color:var(--tinta); font-size:28px; line-height:1; font-weight:700; cursor:pointer; box-shadow:0 8px 22px rgba(0,0,0,.3); z-index:500; align-items:center; justify-content:center;}
@@ -423,6 +430,15 @@ function viewResumen(){
       <h3 style="margin:0 0 12px; font-size:15px;">Ingresos vs. gastos por mes</h3>
       <canvas id="chart" height="160"></canvas>
     </div>
+    <div class="tabla-wrap" style="padding:18px 20px; margin-bottom:24px;">
+      <h3 style="margin:0 0 12px; font-size:15px;">Gastos por categoría</h3>
+      ${gastos>0 ? `
+        <div class="pie-row">
+          <canvas id="chart-categorias" width="200" height="200"></canvas>
+          <div class="pie-leyenda" id="leyenda-categorias"></div>
+        </div>
+      ` : '<div style="color:var(--texto-claro); font-size:13px;">Registra un gasto para ver en qué se te va la plata.</div>'}
+    </div>
     <h3 style="font-size:15px; margin-bottom:10px;">Movimientos recientes</h3>
     <div class="tabla-wrap">
       <table>
@@ -504,6 +520,45 @@ function drawChart(){
     ctx.fillStyle='#6B6354'; ctx.font='11px "IBM Plex Mono"'; ctx.textAlign='center';
     const [y,mo]=k.split('-'); ctx.fillText(new Date(y,mo-1,1).toLocaleDateString('es-CO',{month:'short'}), cx, h-6);
   });
+}
+
+const COLORES_CATEGORIAS = ['#A63D2F','#B8862E','#2F6B4F','#5B3E7A','#3E6B7A','#8A5A16','#6B6354'];
+function gastosPorCategoria(){
+  const totalesPorCat = {};
+  movimientos.filter(m=>m.tipo==='gasto').forEach(m=>{ totalesPorCat[m.categoria] = (totalesPorCat[m.categoria]||0) + Number(m.monto); });
+  let lista = Object.entries(totalesPorCat).map(([categoria,monto])=>({categoria,monto})).sort((a,b)=>b.monto-a.monto);
+  if(lista.length > 6){
+    const top = lista.slice(0,6);
+    const otros = lista.slice(6).reduce((s,x)=>s+x.monto,0);
+    lista = [...top, {categoria:'Otros', monto:otros}];
+  }
+  return lista;
+}
+function drawPieCategorias(){
+  const canvas = document.getElementById('chart-categorias'); if(!canvas) return;
+  const datos = gastosPorCategoria();
+  const total = datos.reduce((s,d)=>s+d.monto,0);
+  const dpr = window.devicePixelRatio||1, size = 200;
+  canvas.width = size*dpr; canvas.height = size*dpr;
+  const ctx = canvas.getContext('2d'); ctx.scale(dpr,dpr); ctx.clearRect(0,0,size,size);
+  const cx=size/2, cy=size/2, r=size/2-6;
+  let anguloInicio = -Math.PI/2;
+  datos.forEach((d,i)=>{
+    const porcion = d.monto/total, anguloFin = anguloInicio + porcion*Math.PI*2;
+    ctx.beginPath(); ctx.moveTo(cx,cy); ctx.arc(cx,cy,r,anguloInicio,anguloFin); ctx.closePath();
+    ctx.fillStyle = COLORES_CATEGORIAS[i % COLORES_CATEGORIAS.length]; ctx.fill();
+    anguloInicio = anguloFin;
+  });
+  ctx.beginPath(); ctx.arc(cx,cy,r*0.55,0,Math.PI*2); ctx.fillStyle='#FFFDF8'; ctx.fill();
+
+  const leyenda = document.getElementById('leyenda-categorias'); if(!leyenda) return;
+  leyenda.innerHTML = datos.map((d,i)=>`
+    <div class="item">
+      <span class="punto" style="background:${COLORES_CATEGORIAS[i % COLORES_CATEGORIAS.length]}"></span>
+      <span class="nombre">${d.categoria}</span>
+      <span class="monto">${fmt.format(d.monto)}</span>
+    </div>
+  `).join('');
 }
 
 /* ============ Tarjetas y ahorros ============ */
@@ -776,7 +831,7 @@ async function subirArchivo(file){
 
 /* ============ Handlers ============ */
 function attachHandlers(){
-  if(currentTab==='resumen') drawChart();
+  if(currentTab==='resumen'){ drawChart(); drawPieCategorias(); }
 
   if(currentTab==='cuentas'){
     const btnNueva = document.getElementById('btn-nueva-cuenta');
