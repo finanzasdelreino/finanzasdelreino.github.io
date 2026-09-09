@@ -130,6 +130,10 @@
   .cuenta-card .saldo{font-family:'IBM Plex Mono',monospace; font-size:21px; font-weight:600; margin-bottom:10px;}
   .cuenta-card .saldo.deuda{color:var(--rojo);} .cuenta-card .saldo.disponible{color:var(--tinta-clara);}
   .cuenta-card .detalle-fila{display:flex; justify-content:space-between; font-size:12.5px; color:var(--texto-claro); padding:5px 0; border-top:1px solid var(--papel-oscuro);}
+  .meta-progreso{margin-top:6px;}
+  .meta-progreso .barra{background:var(--papel-oscuro); border-radius:20px; height:9px; overflow:hidden;}
+  .meta-progreso .relleno{background:var(--tinta-clara); height:100%; border-radius:20px;}
+  .meta-progreso .meta-texto{font-size:11.5px; color:var(--texto-claro); margin-top:5px;}
   .cuenta-card .acciones{display:flex; gap:8px; margin-top:13px;}
   .cuenta-card .acciones button{flex:1; font-size:12px; padding:7px; border-radius:3px; border:1px solid var(--linea); background:var(--papel); cursor:pointer; color:var(--texto);}
 
@@ -578,6 +582,8 @@ function viewCuentas(){
 }
 function tarjetaCuentaHTML(c){
   const esTarjeta = c.tipo==='tarjeta_credito';
+  const tieneMeta = !esTarjeta && c.meta > 0;
+  const pct = tieneMeta ? Math.min(100, Math.round((c.saldo/c.meta)*100)) : 0;
   return `
     <div class="cuenta-card">
       <span class="tipo-tag ${c.tipo}">${NOMBRES_TIPO_CUENTA[c.tipo]}</span>
@@ -587,6 +593,12 @@ function tarjetaCuentaHTML(c){
         <div class="detalle-fila"><span>Día de corte</span><span>${c.dia_corte||'—'}</span></div>
         <div class="detalle-fila"><span>Día de pago</span><span>${c.dia_pago||'—'}</span></div>
         <div class="detalle-fila"><span>Cuotas</span><span>${c.cuotas||0}</span></div>
+      ` : ''}
+      ${tieneMeta ? `
+        <div class="meta-progreso">
+          <div class="barra"><div class="relleno" style="width:${pct}%;"></div></div>
+          <div class="meta-texto">${pct}% de tu meta de ${fmt.format(c.meta)}</div>
+        </div>
       ` : ''}
       <div class="acciones">
         <button data-editar-cuenta="${c.id}">Editar</button>
@@ -611,7 +623,9 @@ function formCuenta(editando){
         <div class="form-row"><label>Día de corte (1-31)</label><input type="number" id="in-cuenta-corte" min="1" max="31" value="${editando&&editando.dia_corte?editando.dia_corte:''}"></div>
         <div class="form-row"><label>Día de pago (1-31)</label><input type="number" id="in-cuenta-pago" min="1" max="31" value="${editando&&editando.dia_pago?editando.dia_pago:''}"></div>
         <div class="form-row"><label>Cuotas actuales</label><input type="number" id="in-cuenta-cuotas" min="0" step="1" value="${editando&&editando.cuotas?editando.cuotas:''}"></div>
-      ` : ''}
+      ` : `
+        <div class="form-row"><label>Meta de ahorro (opcional)</label><input type="number" id="in-cuenta-meta" min="0" step="1" placeholder="Ej. 5000000" value="${editando&&editando.meta?editando.meta:''}"></div>
+      `}
       <div style="display:flex; gap:10px;">
         <button class="btn" id="btn-guardar-cuenta">${editando?'Guardar cambios':'Guardar cuenta'}</button>
         <button class="btn secondary" id="btn-cancelar-cuenta">Cancelar</button>
@@ -853,9 +867,11 @@ function attachHandlers(){
           const cuotasVal = parseInt(document.getElementById('in-cuenta-cuotas').value)||0;
           if(!corte || corte<1 || corte>31){ toast('Ingresa un día de corte válido (1-31).'); return; }
           if(!pago || pago<1 || pago>31){ toast('Ingresa un día de pago válido (1-31).'); return; }
-          payload.dia_corte = corte; payload.dia_pago = pago; payload.cuotas = cuotasVal;
+          payload.dia_corte = corte; payload.dia_pago = pago; payload.cuotas = cuotasVal; payload.meta = null;
         } else {
+          const metaVal = parseFloat(document.getElementById('in-cuenta-meta').value);
           payload.dia_corte = null; payload.dia_pago = null; payload.cuotas = null;
+          payload.meta = (!isNaN(metaVal) && metaVal>0) ? metaVal : null;
         }
         if(editingCuentaId){
           const { data, error } = await sb.from('accounts').update(payload).eq('id', editingCuentaId).select().single();
