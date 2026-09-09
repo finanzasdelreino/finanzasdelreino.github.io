@@ -135,6 +135,11 @@
 
   .toolbar{display:flex; gap:10px; margin-bottom:18px; flex-wrap:wrap;}
   canvas{max-width:100%;}
+  .fab{display:none; position:fixed; bottom:26px; right:26px; width:56px; height:56px; border-radius:50%; border:none; background:var(--dorado); color:var(--tinta); font-size:28px; line-height:1; font-weight:700; cursor:pointer; box-shadow:0 8px 22px rgba(0,0,0,.3); z-index:500; align-items:center; justify-content:center;}
+  .fab.visible{display:flex;}
+  .fab:hover{background:#CB9A3E;}
+  @media (max-width:760px){ .fab{bottom:18px; right:18px; width:52px; height:52px; font-size:26px;} }
+
   .toast{position:fixed; bottom:22px; right:22px; background:var(--tinta); color:var(--papel); padding:12px 18px; border-radius:4px; font-size:13.5px; box-shadow:0 8px 24px rgba(0,0,0,.25); opacity:0; transform:translateY(8px); transition:all .25s ease; pointer-events:none; z-index:999; max-width:340px; line-height:1.5;}
   .toast.show{opacity:1; transform:translateY(0);}
   .loading-msg{padding:40px; text-align:center; color:var(--texto-claro);}
@@ -181,6 +186,8 @@
   </div>
   <div class="main"><div class="page" id="page"></div></div>
 </div>
+
+<button class="fab" id="fab-nuevo" title="Nuevo movimiento" aria-label="Nuevo movimiento">+</button>
 
 <div class="toast" id="toast"></div>
 
@@ -291,6 +298,7 @@ sb.auth.onAuthStateChange(async (event, sess)=>{
   } else {
     document.getElementById('auth-screen').style.display = 'flex';
     document.getElementById('shell').classList.remove('visible');
+    document.getElementById('fab-nuevo').classList.remove('visible');
   }
 });
 
@@ -370,8 +378,13 @@ function render(){
   else if(currentTab==='documentos') page.innerHTML = viewDocumentos();
   else if(currentTab==='reportes') page.innerHTML = viewReportes();
   else if(currentTab==='ajustes') page.innerHTML = viewAjustes();
+  document.getElementById('fab-nuevo').classList.toggle('visible', currentTab!=='nuevo');
   attachHandlers();
 }
+
+document.getElementById('fab-nuevo').addEventListener('click', ()=>{
+  editingId = null; pendingFile = null; currentTab = 'nuevo'; render();
+});
 
 function totales(lista){
   const ingresos = lista.filter(m=>m.tipo==='ingreso').reduce((s,m)=>s+Number(m.monto),0);
